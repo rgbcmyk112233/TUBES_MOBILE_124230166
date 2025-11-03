@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'login_page.dart';
-import 'services/gemini_service.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  const apiKey = "AIzaSyAbIa-6c_-EW3er_RcTEIEu939nU7pbGKE";
-  final gemini = GeminiService(apiKey: apiKey);
+
+  await dotenv.load(fileName: "lib/key.env");
 
   runApp(const MyApp());
 }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'sqlite/database_helper.dart';
-import 'sqlite/user_model.dart';
+import '../services/supabase_service.dart';
+import '../sqlite/user_model.dart';
 import 'register_page.dart';
 import 'home_page.dart';
 
@@ -13,12 +13,22 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final DatabaseHelper _databaseHelper = DatabaseHelper();
+  final SupabaseService _supabaseService = SupabaseService();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeSupabase();
+  }
+
+  Future<void> _initializeSupabase() async {
+    await _supabaseService.initialize();
+  }
 
   Future<void> _login() async {
     if (_formKey.currentState!.validate()) {
@@ -27,22 +37,22 @@ class _LoginPageState extends State<LoginPage> {
       });
 
       try {
-        final user = await _databaseHelper.verifyLogin(
-          _usernameController.text.trim(),
-          _passwordController.text.trim(),
+        final userData = await _supabaseService.loginUser(
+          userMail: _emailController.text.trim(),
+          userPwd: _passwordController.text.trim(),
         );
 
-        if (user != null) {
-          // Login berhasil
+        if (userData != null) {
+          final user = User.fromJson(userData);
+
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => HomePage(user: user)),
           );
         } else {
-          // Login gagal
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Username/email atau password salah'),
+              content: Text('Email atau password salah'),
               backgroundColor: Colors.red,
             ),
           );
@@ -72,8 +82,10 @@ class _LoginPageState extends State<LoginPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 60),
-                // Logo/Title
-                const FlutterLogo(size: 100),
+
+                // Logo/Icon
+                Icon(Icons.movie, size: 100, color: Colors.blue),
+
                 const SizedBox(height: 20),
                 const Text(
                   'Selamat Datang',
@@ -92,19 +104,23 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 40),
 
-                // Username/Email Field
+                // Email Field
                 TextFormField(
-                  controller: _usernameController,
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
-                    labelText: 'Username atau Email',
-                    prefixIcon: const Icon(Icons.person),
+                    labelText: 'Email',
+                    prefixIcon: const Icon(Icons.email),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Masukkan username atau email';
+                      return 'Masukkan email';
+                    }
+                    if (!value.contains('@')) {
+                      return 'Masukkan email yang valid';
                     }
                     return null;
                   },
@@ -212,7 +228,7 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   void dispose() {
-    _usernameController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }

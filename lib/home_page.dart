@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:myfilms_app/sqlite/user_model.dart';
-import '../models/movie_model.dart';
+import '../sqlite/user_model.dart';
 import '../services/movie_service.dart';
-import 'login_page.dart';
+import '../models/movie_model.dart';
 import 'movie_detail_page.dart';
+import 'about_page.dart';
+import 'login_page.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({Key? key, required User user}) : super(key: key);
+  final User user;
+
+  const HomePage({Key? key, required this.user}) : super(key: key);
 
   @override
   _HomePageState createState() => _HomePageState();
@@ -16,6 +19,7 @@ class _HomePageState extends State<HomePage> {
   final MovieService _movieService = MovieService();
   final TextEditingController _searchController = TextEditingController();
 
+  int _currentIndex = 0;
   List<Movie> _movies = [];
   List<Movie> _filteredMovies = [];
   bool _isLoading = false;
@@ -71,7 +75,6 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _searchNewMovies(String query) async {
     if (query.isEmpty) {
-      // Jika query kosong, kembali ke film Spider-Man
       _currentSearch = 'spiderman';
       await _loadMovies();
       return;
@@ -109,6 +112,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // ========== MOVIE SEARCH PAGE ==========
   Widget _buildMovieCard(Movie movie) {
     return Card(
       elevation: 4,
@@ -238,17 +242,6 @@ class _HomePageState extends State<HomePage> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-
-                  // Tap hint
-                  const SizedBox(height: 8),
-                  Text(
-                    'Tap for details →',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.blue[600],
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -316,138 +309,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildMovieGrid() {
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: 0.7,
-      ),
-      itemCount: _filteredMovies.length,
-      itemBuilder: (context, index) {
-        final movie = _filteredMovies[index];
-        return _buildMovieGridCard(movie);
-      },
-    );
-  }
-
-  Widget _buildMovieGridCard(Movie movie) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        onTap: () => _navigateToMovieDetail(movie),
-        borderRadius: BorderRadius.circular(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Poster Image
-            Expanded(
-              flex: 3,
-              child: ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(12),
-                  topRight: Radius.circular(12),
-                ),
-                child: Container(
-                  color: Colors.grey[200],
-                  child:
-                      movie.imagePoster.isNotEmpty && movie.imagePoster != 'N/A'
-                      ? Image.network(
-                          movie.imagePoster,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return _buildGridPlaceholderImage();
-                          },
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          },
-                        )
-                      : _buildGridPlaceholderImage(),
-                ),
-              ),
-            ),
-
-            // Movie Info
-            Expanded(
-              flex: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Title
-                    Text(
-                      movie.title.isNotEmpty ? movie.title : 'No Title',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        height: 1.2,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-
-                    // Year and Rating
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          movie.year.isNotEmpty ? movie.year : 'Unknown',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
-                        ),
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.star,
-                              size: 14,
-                              color: Colors.amber,
-                            ),
-                            const SizedBox(width: 2),
-                            Text(
-                              movie.formattedRating,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGridPlaceholderImage() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.movie, size: 30, color: Colors.grey),
-          SizedBox(height: 4),
-          Text('No Image', style: TextStyle(fontSize: 10, color: Colors.grey)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBody() {
+  Widget _buildMovieSearchBody() {
     if (_isLoading) {
       return const Center(
         child: Column(
@@ -537,82 +399,64 @@ class _HomePageState extends State<HomePage> {
 
     return RefreshIndicator(
       onRefresh: _loadMovies,
-      child: _filteredMovies.length > 4 ? _buildMovieGrid() : _buildMovieList(),
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: _filteredMovies.length,
+        itemBuilder: (context, index) {
+          final movie = _filteredMovies[index];
+          return _buildMovieCard(movie);
+        },
+      ),
     );
   }
 
-  Widget _buildMovieList() {
-    return ListView.builder(
-      physics: const AlwaysScrollableScrollPhysics(),
-      itemCount: _filteredMovies.length,
-      itemBuilder: (context, index) {
-        final movie = _filteredMovies[index];
-        return _buildMovieCard(movie);
-      },
+  Widget _buildMovieSearchPage() {
+    return Column(
+      children: [
+        _buildSearchBar(),
+        Expanded(child: _buildMovieSearchBody()),
+      ],
     );
   }
 
+  // ========== BOTTOM NAVIGATION BAR ==========
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Movie Search'),
+        title: Text(_currentIndex == 0 ? 'Movie Search' : 'My Profile'),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         elevation: 2,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadMovies,
-            tooltip: 'Refresh',
-          ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.view_module),
-            onSelected: (value) {
-              // Untuk future enhancement: toggle between list and grid view
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(value: 'list', child: Text('List View')),
-              const PopupMenuItem(value: 'grid', child: Text('Grid View')),
-            ],
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginPage()),
-              );
-            },
-            tooltip: 'Logout',
-          ),
+          if (_currentIndex == 0)
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _loadMovies,
+              tooltip: 'Refresh',
+            ),
         ],
       ),
-      body: Column(
-        children: [
-          _buildSearchBar(),
-          Expanded(child: _buildBody()),
+      body: _currentIndex == 0
+          ? _buildMovieSearchPage()
+          : AboutPage(user: widget.user), // Langsung arahkan ke AboutPage
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.movie), label: 'Movies'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
+        backgroundColor: Colors.white,
+        selectedItemColor: Colors.blue,
+        unselectedItemColor: Colors.grey,
+        showUnselectedLabels: true,
+        type: BottomNavigationBarType.fixed,
       ),
-      floatingActionButton: _filteredMovies.isNotEmpty
-          ? FloatingActionButton(
-              onPressed: () {
-                // Scroll to top
-                Scrollable.ensureVisible(
-                  context,
-                  duration: const Duration(milliseconds: 500),
-                );
-              },
-              child: const Icon(Icons.arrow_upward),
-              mini: true,
-            )
-          : null,
     );
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
   }
 }

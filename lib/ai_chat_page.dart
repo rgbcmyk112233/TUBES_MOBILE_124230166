@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../services/gemini_service.dart';
 
 class AIChatPage extends StatefulWidget {
@@ -17,23 +18,52 @@ class AIChatPage extends StatefulWidget {
 
 class _AIChatPageState extends State<AIChatPage> {
   final TextEditingController _messageController = TextEditingController();
-  final GeminiService _geminiService = GeminiService(
-    apiKey:
-        'AIzaSyAbIa-6c_-EW3er_RcTEIEu939nU7pbGKE', // Ganti dengan API key Anda
-  );
-
+  late GeminiService _geminiService;
   final List<ChatMessage> _messages = [];
   bool _isLoading = false;
   bool _initialMessageSent = false;
+  bool _serviceInitialized = false;
+  String _errorMessage = '';
 
   @override
   void initState() {
     super.initState();
-    _sendInitialMessage();
+    _initializeGeminiService();
+  }
+
+  Future<void> _initializeGeminiService() async {
+    try {
+      // Load .env file
+      await dotenv.load(fileName: ".env");
+
+      // Get API key from .env
+      final String? geminiApiKey = dotenv.env['GEMINI_API_KEY'];
+
+      if (geminiApiKey == null ||
+          geminiApiKey.isEmpty ||
+          geminiApiKey == 'your_actual_gemini_api_key_here') {
+        throw Exception('GEMINI_API_KEY not found in .env file');
+      }
+
+      // Initialize Gemini Service
+      _geminiService = GeminiService(apiKey: geminiApiKey);
+
+      setState(() {
+        _serviceInitialized = true;
+      });
+
+      // Send initial message after service is initialized
+      _sendInitialMessage();
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to initialize AI service: $e';
+        _serviceInitialized = false;
+      });
+    }
   }
 
   void _sendInitialMessage() async {
-    if (_initialMessageSent) return;
+    if (_initialMessageSent || !_serviceInitialized) return;
 
     setState(() {
       _isLoading = true;
@@ -61,13 +91,14 @@ class _AIChatPageState extends State<AIChatPage> {
           ),
         );
         _isLoading = false;
+        _errorMessage = e.toString();
       });
     }
   }
 
   void _sendMessage() async {
     final message = _messageController.text.trim();
-    if (message.isEmpty) return;
+    if (message.isEmpty || !_serviceInitialized) return;
 
     // Add user message
     setState(() {
@@ -101,8 +132,43 @@ Ingat: Hanya bahas tentang film "${widget.movieTitle}" dan hal yang terkait. Jan
           ),
         );
         _isLoading = false;
+        _errorMessage = e.toString();
       });
     }
+  }
+
+  Widget _buildErrorWidget() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 64, color: Colors.red),
+            const SizedBox(height: 16),
+            const Text(
+              'AI Service Error',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.red,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _errorMessage,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _initializeGeminiService,
+              child: const Text('Try Again'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildMessage(ChatMessage message) {
@@ -152,6 +218,58 @@ Ingat: Hanya bahas tentang film "${widget.movieTitle}" dan hal yang terkait. Jan
     );
   }
 
+  Widget _buildLoadingIndicator() {
+    return const Padding(
+      padding: EdgeInsets.all(16),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: Colors.blue,
+            child: Icon(Icons.smart_toy, color: Colors.white, size: 20),
+          ),
+          SizedBox(width: 8),
+          Expanded(
+            child: Card(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    SizedBox(width: 12),
+                    Text('AI sedang mengetik...'),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChatBody() {
+    if (!_serviceInitialized && _errorMessage.isNotEmpty) {
+      return _buildErrorWidget();
+    }
+
+    return ListView.builder(
+      reverse: false,
+      itemCount: _messages.length + (_isLoading ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index < _messages.length) {
+          return _buildMessage(_messages[index]);
+        } else {
+          return _buildLoadingIndicator();
+        }
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -196,53 +314,7 @@ Ingat: Hanya bahas tentang film "${widget.movieTitle}" dan hal yang terkait. Jan
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: ListView.builder(
-                reverse: false,
-                itemCount: _messages.length + (_isLoading ? 1 : 0),
-                itemBuilder: (context, index) {
-                  if (index < _messages.length) {
-                    return _buildMessage(_messages[index]);
-                  } else {
-                    return const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            backgroundColor: Colors.blue,
-                            child: Icon(
-                              Icons.smart_toy,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                          ),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Card(
-                              child: Padding(
-                                padding: EdgeInsets.all(16),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    ),
-                                    SizedBox(width: 12),
-                                    Text('AI sedang mengetik...'),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-                },
-              ),
+              child: _buildChatBody(),
             ),
           ),
 
@@ -264,8 +336,11 @@ Ingat: Hanya bahas tentang film "${widget.movieTitle}" dan hal yang terkait. Jan
                 Expanded(
                   child: TextField(
                     controller: _messageController,
+                    enabled: _serviceInitialized,
                     decoration: InputDecoration(
-                      hintText: 'Tanyakan tentang film...',
+                      hintText: _serviceInitialized
+                          ? 'Tanyakan tentang film...'
+                          : 'AI service sedang dimuat...',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(25),
                       ),
@@ -278,10 +353,12 @@ Ingat: Hanya bahas tentang film "${widget.movieTitle}" dan hal yang terkait. Jan
                 ),
                 const SizedBox(width: 8),
                 CircleAvatar(
-                  backgroundColor: Colors.blue,
+                  backgroundColor: _serviceInitialized
+                      ? Colors.blue
+                      : Colors.grey,
                   child: IconButton(
                     icon: const Icon(Icons.send, color: Colors.white),
-                    onPressed: _sendMessage,
+                    onPressed: _serviceInitialized ? _sendMessage : null,
                   ),
                 ),
               ],

@@ -16,8 +16,9 @@ dependencies:
   flutter_dotenv: ^6.0.0
   google_generative_ai: ^0.4.7
   google_generative_language_api: ^0.2.1
-  firebase_core: ^4.2.0
-  cloud_firestore: ^6.0.3
+  supabase_flutter: ^2.10.3
+  crypto: ^3.0.6
+  image_picker: ^1.2.0
 
 dev_dependencies:
   flutter_test:
@@ -26,3 +27,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - lib/key.env
