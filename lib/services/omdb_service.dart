@@ -1,10 +1,12 @@
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../models/omdb_movie_model.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class OmdbService {
   static const String baseUrl = 'http://www.omdbapi.com/';
-  static const String apiKey = 'a167ee30'; // Ganti dengan API key Anda
+  static final String apiKey = 'a167ee30';
 
   Future<OmdbMovie> getMovieDetails(String imdbId) async {
     try {

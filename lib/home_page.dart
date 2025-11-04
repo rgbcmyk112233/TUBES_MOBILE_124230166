@@ -4,7 +4,6 @@ import '../services/movie_service.dart';
 import '../models/movie_model.dart';
 import 'movie_detail_page.dart';
 import 'about_page.dart';
-import 'login_page.dart';
 
 class HomePage extends StatefulWidget {
   final User user;

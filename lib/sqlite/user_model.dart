@@ -1,3 +1,5 @@
+import 'package:myfilms_app/models/session_model.dart';
+
 class User {
   final String userId;
   final String userName;
@@ -23,6 +25,17 @@ class User {
     );
   }
 
+  // Tambahkan method dari Session
+  factory User.fromSession(Session session) {
+    return User(
+      userId: session.userId,
+      userName: session.userName,
+      userMail: session.userEmail,
+      userDesc: 'Profile user', // Default description
+      userPhoto: session.userPhoto.isNotEmpty ? session.userPhoto : null,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'UserId': userId,
@@ -31,5 +44,18 @@ class User {
       'UserDesc': userDesc,
       'UserPhoto': userPhoto,
     };
+  }
+
+  // Convert to Session
+  Session toSession() {
+    return Session(
+      userId: userId,
+      userName: userName,
+      userEmail: userMail,
+      userPhoto: userPhoto ?? '',
+      isLoggedIn: true,
+      lastLogin: DateTime.now(),
+      expiresAt: DateTime.now().add(const Duration(days: 30)), // 30 days expiry
+    );
   }
 }

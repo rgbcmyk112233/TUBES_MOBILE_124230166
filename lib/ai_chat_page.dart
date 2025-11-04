@@ -34,15 +34,15 @@ class _AIChatPageState extends State<AIChatPage> {
   Future<void> _initializeGeminiService() async {
     try {
       // Load .env file
-      await dotenv.load(fileName: ".env");
+      await dotenv.load(fileName: "lib/key.env");
 
       // Get API key from .env
       final String? geminiApiKey = dotenv.env['GEMINI_API_KEY'];
 
       if (geminiApiKey == null ||
           geminiApiKey.isEmpty ||
-          geminiApiKey == 'your_actual_gemini_api_key_here') {
-        throw Exception('GEMINI_API_KEY not found in .env file');
+          geminiApiKey == 'API_KEY') {
+        throw Exception('KEY_NOT_FOUND');
       }
 
       // Initialize Gemini Service

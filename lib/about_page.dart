@@ -5,6 +5,7 @@ import '../services/supabase_service.dart';
 import '../sqlite/user_model.dart';
 import 'home_page.dart';
 import 'login_page.dart';
+import 'services/session_service.dart';
 
 class AboutPage extends StatefulWidget {
   final User user;
@@ -255,7 +256,11 @@ class _AboutPageState extends State<AboutPage> {
     );
   }
 
-  void _logout() {
+  void _logout() async {
+    // Clear session from local database
+    final SessionService sessionService = SessionService();
+    await sessionService.logout();
+
     // Add a little delay for better UX
     Future.delayed(const Duration(milliseconds: 300), () {
       Navigator.pushAndRemoveUntil(

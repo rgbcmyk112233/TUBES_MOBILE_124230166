@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
+import '../services/session_service.dart';
 import '../sqlite/user_model.dart';
 import 'register_page.dart';
 import 'home_page.dart';
@@ -16,18 +17,39 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final SupabaseService _supabaseService = SupabaseService();
+  final SessionService _sessionService = SessionService();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _checkingSession = true;
 
   @override
   void initState() {
     super.initState();
-    _initializeSupabase();
+    _initializeApp();
   }
 
-  Future<void> _initializeSupabase() async {
+  Future<void> _initializeApp() async {
     await _supabaseService.initialize();
+    await _checkExistingSession();
+  }
+
+  Future<void> _checkExistingSession() async {
+    try {
+      final session = await _sessionService.getCurrentSession();
+      if (session != null && session.isValid) {
+        // Auto login dengan session yang valid
+        final user = User.fromSession(session);
+        _navigateToHome(user);
+        return;
+      }
+    } catch (e) {
+      print('Error checking session: $e');
+    } finally {
+      setState(() {
+        _checkingSession = false;
+      });
+    }
   }
 
   Future<void> _login() async {
@@ -45,10 +67,10 @@ class _LoginPageState extends State<LoginPage> {
         if (userData != null) {
           final user = User.fromJson(userData);
 
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => HomePage(user: user)),
-          );
+          // Save session to local database
+          await _sessionService.saveSession(user.toSession());
+
+          _navigateToHome(user);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -69,8 +91,30 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  void _navigateToHome(User user) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => HomePage(user: user)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_checkingSession) {
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Memeriksa session...'),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(

@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import '../models/omdb_movie_model.dart';
+import '../models/comment_model.dart';
+import '../sqlite/user_model.dart';
 import '../services/omdb_service.dart';
-import 'ai_chat_page.dart'; // Import halaman chat
+import '../services/supabase_service.dart';
+import 'ai_chat_page.dart';
 
 class MovieDetailPage extends StatefulWidget {
   final String imdbId;
+  final User? user;
 
-  const MovieDetailPage({Key? key, required this.imdbId}) : super(key: key);
+  const MovieDetailPage({Key? key, required this.imdbId, this.user})
+    : super(key: key);
 
   @override
   _MovieDetailPageState createState() => _MovieDetailPageState();
@@ -14,14 +19,26 @@ class MovieDetailPage extends StatefulWidget {
 
 class _MovieDetailPageState extends State<MovieDetailPage> {
   final OmdbService _omdbService = OmdbService();
+  final SupabaseService _supabaseService = SupabaseService();
+  final TextEditingController _commentController = TextEditingController();
+
   OmdbMovie? _movie;
+  List<Comment> _comments = [];
   bool _isLoading = true;
+  bool _isLoadingComments = true;
+  bool _isPostingComment = false;
   String _errorMessage = '';
 
   @override
   void initState() {
     super.initState();
     _loadMovieDetails();
+    _loadComments();
+    _initializeSupabase();
+  }
+
+  Future<void> _initializeSupabase() async {
+    await _supabaseService.initialize();
   }
 
   Future<void> _loadMovieDetails() async {
@@ -44,7 +61,60 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
     }
   }
 
-  // === TAMBAHKAN METHOD INI ===
+  Future<void> _loadComments() async {
+    setState(() {
+      _isLoadingComments = true;
+    });
+
+    try {
+      final comments = await _supabaseService.getComments(widget.imdbId);
+      setState(() {
+        _comments = comments;
+        _isLoadingComments = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingComments = false;
+      });
+    }
+  }
+
+  Future<void> _postComment() async {
+    if (_commentController.text.trim().isEmpty || widget.user == null) return;
+
+    setState(() {
+      _isPostingComment = true;
+    });
+
+    try {
+      await _supabaseService.addComment(
+        imdbId: widget.imdbId,
+        userId: widget.user!.userId,
+        userName: widget.user!.userName,
+        userComment: _commentController.text.trim(),
+        userPhoto: widget.user!.userPhoto,
+      );
+
+      _commentController.clear();
+      await _loadComments();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Komentar berhasil ditambahkan'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      setState(() {
+        _isPostingComment = false;
+      });
+    }
+  }
+
   void _openAIChat() {
     if (_movie != null) {
       Navigator.push(
@@ -59,7 +129,261 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
       );
     }
   }
-  // === END OF TAMBAHAN ===
+
+  Widget _buildComment(Comment comment) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 16,
+      ), // Added horizontal padding
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // User Avatar
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.grey[200],
+              image: comment.userPhoto != null && comment.userPhoto!.isNotEmpty
+                  ? DecorationImage(
+                      image: NetworkImage(comment.userPhoto!),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
+            ),
+            child: comment.userPhoto == null || comment.userPhoto!.isEmpty
+                ? const Icon(Icons.person, size: 20, color: Colors.grey)
+                : null,
+          ),
+          const SizedBox(width: 12),
+
+          // Comment Content
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[200]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // User Info and Time
+                  Row(
+                    children: [
+                      Text(
+                        comment.userName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        comment.timeAgo,
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+
+                  // Comment Text
+                  Text(
+                    comment.userComment,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.black87,
+                      height: 1.4,
+                    ),
+                    maxLines: 10,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCommentsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 24),
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 16,
+          ), // Added horizontal padding
+          child: const Text(
+            'Komentar',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Comment Input (only if user is logged in)
+        if (widget.user != null) ...[
+          Container(
+            margin: const EdgeInsets.symmetric(
+              horizontal: 16,
+            ), // Added horizontal margin
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey[300]!),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                TextField(
+                  controller: _commentController,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    hintText: 'Tulis komentar tentang film ini...',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.grey[400]!),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: Colors.blue),
+                    ),
+                    contentPadding: const EdgeInsets.all(12),
+                    hintStyle: TextStyle(color: Colors.grey[600]),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isPostingComment ? null : _postComment,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: _isPostingComment
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
+                            ),
+                          )
+                        : const Text(
+                            'Post Komentar',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+        ] else ...[
+          Container(
+            margin: const EdgeInsets.symmetric(
+              horizontal: 16,
+            ), // Added horizontal margin
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.orange[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange[200]!),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Login untuk menambahkan komentar',
+                    style: TextStyle(color: Colors.orange[800], fontSize: 14),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
+
+        // Comments List
+        if (_isLoadingComments)
+          const Padding(
+            padding: EdgeInsets.all(32),
+            child: Center(
+              child: Column(
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 8),
+                  Text(
+                    'Memuat komentar...',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else if (_comments.isEmpty)
+          Container(
+            margin: const EdgeInsets.symmetric(
+              horizontal: 16,
+            ), // Added horizontal margin
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey[200]!),
+            ),
+            child: const Column(
+              children: [
+                Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey),
+                SizedBox(height: 12),
+                Text(
+                  'Belum ada komentar',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Jadilah yang pertama berkomentar!',
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ],
+            ),
+          )
+        else
+          Column(children: _comments.map(_buildComment).toList()),
+      ],
+    );
+  }
 
   Widget _buildPosterSection() {
     return Container(
@@ -399,13 +723,19 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
           : Column(
               children: [
                 Expanded(
-                  child: ListView(
-                    children: [_buildPosterSection(), _buildContent()],
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        _buildPosterSection(),
+                        _buildContent(),
+                        _buildCommentsSection(),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
                   ),
                 ),
               ],
             ),
-      // === TAMBAHKAN FLOATING ACTION BUTTON INI ===
       floatingActionButton: _movie != null
           ? FloatingActionButton(
               onPressed: _openAIChat,

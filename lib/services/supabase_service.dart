@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:myfilms_app/models/comment_model.dart';
 
 class SupabaseService {
   static final SupabaseService _instance = SupabaseService._internal();
@@ -143,6 +144,58 @@ class SupabaseService {
       return publicUrl;
     } catch (e) {
       throw Exception('Error uploading photo: $e');
+    }
+  }
+
+  // Tambahkan method berikut di class SupabaseService
+
+  // Get comments for a movie
+  Future<List<Comment>> getComments(String imdbId) async {
+    try {
+      final response = await client
+          .from('Komentar')
+          .select()
+          .eq('imdb_id', imdbId)
+          .order('posted', ascending: false);
+
+      return response.map<Comment>((json) => Comment.fromJson(json)).toList();
+    } catch (e) {
+      throw Exception('Error fetching comments: $e');
+    }
+  }
+
+  // Add new comment
+  Future<void> addComment({
+    required String imdbId,
+    required String userId,
+    required String userName,
+    required String userComment,
+    String? userPhoto,
+  }) async {
+    try {
+      await client.from('Komentar').insert({
+        'imdb_id': imdbId,
+        'user_id': userId,
+        'user_name': userName,
+        'user_comment': userComment,
+        'user_photo': userPhoto,
+        'posted': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      throw Exception('Error adding comment: $e');
+    }
+  }
+
+  // Delete comment (optional)
+  Future<void> deleteComment(String commentId, String userId) async {
+    try {
+      await client
+          .from('Komentar')
+          .delete()
+          .eq('id', commentId)
+          .eq('user_id', userId);
+    } catch (e) {
+      throw Exception('Error deleting comment: $e');
     }
   }
 }
