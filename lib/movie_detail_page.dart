@@ -113,7 +113,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text(
-            'Komentar berhasil ditambahkan',
+            'Comment added successfully!',
             style: TextStyle(color: Colors.white),
           ),
           backgroundColor: Colors.green[800],

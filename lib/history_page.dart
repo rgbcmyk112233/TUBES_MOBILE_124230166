@@ -74,7 +74,6 @@ class _HistoryPageState extends State<HistoryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _bgColor,
-      // AppBar dihapus atau disesuaikan jika halaman ini bagian dari BottomNav yang sudah punya Header
       // Jika butuh AppBar sendiri:
       // appBar: AppBar(title: Text('History'), backgroundColor: _bgColor, foregroundColor: Colors.white),
       body: FutureBuilder<List<Comment>>(

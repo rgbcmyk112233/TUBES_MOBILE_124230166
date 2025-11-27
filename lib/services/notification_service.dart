@@ -72,8 +72,8 @@ class NotificationService {
     // Tampilkan notifikasi
     await _notificationsPlugin.show(
       0, // ID Notifikasi
-      'Registrasi Berhasil!',
-      'Selamat bergabung, $userName! Akun Anda siap digunakan.',
+      'Registration Successful',
+      'Welcome to the club $userName! your can now enjoy the adventure.',
       notificationDetails,
     );
   }

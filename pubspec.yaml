@@ -22,6 +22,7 @@ dependencies:
   timezone: ^0.10.1
   intl: ^0.20.2
   flutter_local_notifications: ^19.5.0
+  flutter_launcher_icons: ^0.14.4
 
 dev_dependencies:
   flutter_test:
@@ -32,3 +33,10 @@ flutter:
   uses-material-design: true
   assets:
     - lib/key.env
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/icon/icon.png"
+  adaptive_icon_background: "#121212"
+  min_sdk_android: 21

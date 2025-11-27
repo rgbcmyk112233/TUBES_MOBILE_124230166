@@ -251,7 +251,7 @@ class _AboutPageState extends State<AboutPage> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Apakah Anda yakin ingin logout?',
+                  'Are you sure you want to logout?',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 16, color: _subTextColor),
                 ),
@@ -439,10 +439,10 @@ class _AboutPageState extends State<AboutPage> {
                             style: TextStyle(
                               color: _accentColor,
                               fontWeight: FontWeight.bold,
-                              fontSize: 14,
+                              fontSize: 20,
                             ),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 9),
                           Text(
                             _descController.text.isNotEmpty
                                 ? _descController.text
