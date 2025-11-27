@@ -93,7 +93,7 @@ class SessionService {
     return session != null;
   }
 
-  // Update session data (e.g., when profile is updated)
+  // Update session data
   Future<void> updateSessionUserData({
     required String userId,
     String? userName,

@@ -9,11 +9,15 @@ plugins {
 }
 
 android {
+    defaultConfig {
+        multiDexEnabled = true
+    }
     namespace = "com.example.myfilms_app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
@@ -39,9 +43,17 @@ android {
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
         }
+        dependencies {
+          //  classpath 'com.android.tools.build:gradle:8.6.0'
+        }
     }
 }
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+   // classpath 'com.android.tools.build:gradle:8.6.0'
 }

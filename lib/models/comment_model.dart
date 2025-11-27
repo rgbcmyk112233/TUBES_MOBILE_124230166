@@ -20,19 +20,19 @@ class Comment {
   factory Comment.fromJson(Map<String, dynamic> json) {
     return Comment(
       id: json['id'] ?? '',
-      imdbId: json['imdb_id'] ?? '',
-      userId: json['user_id'] ?? '',
-      userName: json['user_name'] ?? '',
-      userComment: json['user_comment'] ?? '',
+      imdbId: json['IMDB-ID'] ?? '',
+      userId: json['UserId'] ?? '',
+      userName: json['UserName'] ?? '',
+      userComment: json['UserComment'] ?? '',
       posted: DateTime.parse(json['posted']),
-      userPhoto: json['user_photo'],
+      userPhoto: json['UserPhoto'],
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'imdb_id': imdbId,
+      'IMDB-ID': imdbId,
       'user_id': userId,
       'user_name': userName,
       'user_comment': userComment,

@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import '../sqlite/user_model.dart';
 import '../services/movie_service.dart';
 import '../models/movie_model.dart';
-import 'movie_detail_page.dart';
+import './movie_detail_page.dart';
 import 'about_page.dart';
+import 'history_page.dart';
 
 class HomePage extends StatefulWidget {
   final User user;
@@ -26,6 +27,19 @@ class _HomePageState extends State<HomePage> {
   String _errorMessage = '';
   String _currentSearch = 'spiderman';
 
+  // Warna Tema (Hardcoded untuk Permanent Dark Mode)
+  final Color _bgColor = const Color(0xFF121212);
+  final Color _cardColor = const Color(0xFF1E1E1E);
+  final Color _accentColor = const Color(0xFFFFC107); // Amber/Gold untuk rating
+  final Color _textColor = const Color(0xFFE0E0E0);
+  final Color _subTextColor = const Color(0xFFB0B0B0);
+
+  final List<String> _pageTitles = [
+    'Discover Movies', // Ubah judul jadi lebih menarik
+    'Comment History',
+    'My Profile',
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -41,12 +55,18 @@ class _HomePageState extends State<HomePage> {
 
     try {
       final movies = await _movieService.searchMovies(_currentSearch);
+      if (!mounted) return;
       setState(() {
         _movies = movies;
         _filteredMovies = movies;
         _isLoading = false;
       });
-    } catch (e) {
+    } catch (e, s) {
+      if (!mounted) return;
+      print('--- ERROR Load Movies ---');
+      print(e);
+      print(s);
+      print('---------------------------');
       setState(() {
         _isLoading = false;
         _hasError = true;
@@ -88,12 +108,14 @@ class _HomePageState extends State<HomePage> {
 
     try {
       final movies = await _movieService.searchMovies(query);
+      if (!mounted) return;
       setState(() {
         _movies = movies;
         _filteredMovies = movies;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
         _hasError = true;
@@ -106,158 +128,171 @@ class _HomePageState extends State<HomePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => MovieDetailPage(imdbId: movie.imdbId),
+        builder: (context) =>
+            MovieDetailPage(imdbId: movie.imdbId, user: widget.user),
       ),
     );
   }
 
-  // ========== MOVIE SEARCH PAGE ==========
+  // ========== MOVIE SEARCH PAGE (MODIFIED UI) ==========
   Widget _buildMovieCard(Movie movie) {
-    return Card(
-      elevation: 4,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        onTap: () => _navigateToMovieDetail(movie),
-        borderRadius: BorderRadius.circular(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Poster Image
-            ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: _cardColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _navigateToMovieDetail(movie),
+          borderRadius: BorderRadius.circular(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Poster Image (Left Side)
+              ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  bottomLeft: Radius.circular(16),
+                ),
+                child: Container(
+                  width: 110,
+                  height: 160,
+                  color: Colors.grey[900],
+                  child:
+                      movie.imagePoster.isNotEmpty && movie.imagePoster != 'N/A'
+                      ? Image.network(
+                          movie.imagePoster,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              _buildPlaceholderImage(),
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Center(
+                              child: CircularProgressIndicator(
+                                color: _accentColor,
+                                strokeWidth: 2,
+                              ),
+                            );
+                          },
+                        )
+                      : _buildPlaceholderImage(),
+                ),
               ),
-              child: Container(
-                height: 220,
-                color: Colors.grey[200],
-                child:
-                    movie.imagePoster.isNotEmpty && movie.imagePoster != 'N/A'
-                    ? Image.network(
-                        movie.imagePoster,
-                        height: 220,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return _buildPlaceholderImage();
-                        },
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        },
-                      )
-                    : _buildPlaceholderImage(),
-              ),
-            ),
 
-            // Movie Info
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title with tap feedback
-                  Row(
+              // Movie Info (Right Side)
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          movie.title.isNotEmpty
-                              ? movie.title
-                              : 'No Title Available',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            height: 1.2,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                      // Rating Badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _accentColor.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.star, size: 14, color: _accentColor),
+                            const SizedBox(width: 4),
+                            Text(
+                              movie.formattedRating,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: _accentColor,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const Icon(
-                        Icons.chevron_right,
-                        color: Colors.grey,
-                        size: 20,
+                      const SizedBox(height: 8),
+
+                      // Title
+                      Text(
+                        movie.title.isNotEmpty
+                            ? movie.title
+                            : 'No Title Available',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: _textColor,
+                          height: 1.2,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ],
-                  ),
+                      const SizedBox(height: 6),
 
-                  const SizedBox(height: 12),
-
-                  // Year and Rating
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
                       // Year
                       Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.calendar_today,
-                            size: 16,
-                            color: Colors.grey,
+                            size: 14,
+                            color: _subTextColor,
                           ),
                           const SizedBox(width: 6),
                           Text(
                             movie.year.isNotEmpty ? movie.year : 'Unknown',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey,
-                              fontWeight: FontWeight.w500,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: _subTextColor,
                             ),
                           ),
                         ],
                       ),
+                      const SizedBox(height: 8),
 
-                      // Rating
-                      Row(
-                        children: [
-                          const Icon(Icons.star, size: 18, color: Colors.amber),
-                          const SizedBox(width: 4),
-                          Text(
-                            movie.formattedRating,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blue,
-                            ),
-                          ),
-                          const SizedBox(width: 2),
-                          const Text(
-                            '/10',
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
-                          ),
-                        ],
+                      // Actors
+                      Text(
+                        'Cast: ${movie.actors.isNotEmpty ? movie.actors : 'Unknown'}',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
-
-                  const SizedBox(height: 8),
-
-                  // Actors
-                  Text(
-                    'Cast: ${movie.actors.isNotEmpty ? movie.actors : 'Unknown'}',
-                    style: const TextStyle(fontSize: 13, color: Colors.grey),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildPlaceholderImage() {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.movie, size: 50, color: Colors.grey),
-          SizedBox(height: 8),
-          Text('No Image', style: TextStyle(color: Colors.grey)),
+          Icon(
+            Icons.movie_creation_outlined,
+            size: 30,
+            color: Colors.grey[700],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'No Image',
+            style: TextStyle(color: Colors.grey[700], fontSize: 10),
+          ),
         ],
       ),
     );
@@ -265,24 +300,22 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildSearchBar() {
     return Container(
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       decoration: BoxDecoration(
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: const Color(0xFF2C2C2C), // Dark Grey search bar
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(color: Colors.grey[800]!),
       ),
       child: TextField(
         controller: _searchController,
+        style: TextStyle(color: _textColor),
         decoration: InputDecoration(
-          hintText: 'Search movies... (e.g., spider-man, avengers, batman)',
-          prefixIcon: const Icon(Icons.search, color: Colors.blue),
+          hintText: 'Search movies...',
+          hintStyle: TextStyle(color: Colors.grey[600]),
+          prefixIcon: Icon(Icons.search, color: Colors.grey[500]),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
-                  icon: const Icon(Icons.clear, color: Colors.grey),
+                  icon: Icon(Icons.clear, color: Colors.grey[500]),
                   onPressed: () {
                     _searchController.clear();
                     _searchMovies('');
@@ -292,14 +325,11 @@ class _HomePageState extends State<HomePage> {
                 )
               : null,
           filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(25),
-            borderSide: BorderSide.none,
-          ),
+          fillColor: Colors.transparent,
+          border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 20,
-            vertical: 0,
+            vertical: 14,
           ),
         ),
         onChanged: _searchMovies,
@@ -310,15 +340,15 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildMovieSearchBody() {
     if (_isLoading) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
+            CircularProgressIndicator(color: _accentColor),
+            const SizedBox(height: 16),
             Text(
-              'Loading movies...',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
+              'Finding movies...',
+              style: TextStyle(fontSize: 16, color: _subTextColor),
             ),
           ],
         ),
@@ -332,17 +362,21 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.error_outline, size: 64, color: Colors.red),
+              Icon(Icons.error_outline, size: 64, color: Colors.red[400]),
               const SizedBox(height: 16),
-              const Text(
+              Text(
                 'Failed to load movies',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: _textColor,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
                 _errorMessage,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.grey, fontSize: 14),
+                style: TextStyle(color: _subTextColor, fontSize: 14),
               ),
               const SizedBox(height: 20),
               ElevatedButton.icon(
@@ -350,11 +384,10 @@ class _HomePageState extends State<HomePage> {
                 icon: const Icon(Icons.refresh),
                 label: const Text('Try Again'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
+                  backgroundColor: _accentColor,
+                  foregroundColor: Colors.black, // Hitam di atas Amber
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
                   ),
                 ),
               ),
@@ -369,18 +402,11 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.search_off, size: 64, color: Colors.grey),
+            Icon(Icons.search_off, size: 64, color: Colors.grey[800]),
             const SizedBox(height: 16),
-            const Text(
-              'No movies found',
-              style: TextStyle(fontSize: 18, color: Colors.grey),
-            ),
-            const SizedBox(height: 8),
             Text(
-              _searchController.text.isEmpty
-                  ? 'Try searching for a movie'
-                  : 'No results for "${_searchController.text}"',
-              style: const TextStyle(color: Colors.grey),
+              'No movies found',
+              style: TextStyle(fontSize: 18, color: _subTextColor),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
@@ -389,7 +415,12 @@ class _HomePageState extends State<HomePage> {
                 _currentSearch = 'spiderman';
                 _loadMovies();
               },
-              child: const Text('Show Spider-Man Movies'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _cardColor,
+                foregroundColor: _accentColor,
+                side: BorderSide(color: _accentColor),
+              ),
+              child: const Text('Back to Popular'),
             ),
           ],
         ),
@@ -398,11 +429,27 @@ class _HomePageState extends State<HomePage> {
 
     return RefreshIndicator(
       onRefresh: _loadMovies,
+      color: _accentColor,
+      backgroundColor: _cardColor,
       child: ListView.builder(
         physics: const AlwaysScrollableScrollPhysics(),
-        itemCount: _filteredMovies.length,
+        itemCount: _filteredMovies.length + 1, // +1 untuk Header Recommendation
         itemBuilder: (context, index) {
-          final movie = _filteredMovies[index];
+          if (index == 0) {
+            // Ini Header Buatan agar terlihat seperti "Rekomendasi"
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 5),
+              child: Text(
+                "Recommended for you",
+                style: TextStyle(
+                  color: _textColor,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            );
+          }
+          final movie = _filteredMovies[index - 1];
           return _buildMovieCard(movie);
         },
       ),
@@ -418,43 +465,63 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // ========== BOTTOM NAVIGATION BAR ==========
+  // ========== BOTTOM NAVIGATION BAR (MODIFIED) ==========
   @override
   Widget build(BuildContext context) {
+    final List<Widget> pages = [
+      _buildMovieSearchPage(),
+      HistoryPage(user: widget.user),
+      AboutPage(user: widget.user),
+    ];
+
     return Scaffold(
+      backgroundColor: _bgColor, // Background utama hitam
       appBar: AppBar(
-        title: Text(_currentIndex == 0 ? 'Movie Search' : 'My Profile'),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
-        elevation: 2,
-        actions: [
-          if (_currentIndex == 0)
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _loadMovies,
-              tooltip: 'Refresh',
-            ),
-        ],
+        title: Text(
+          _pageTitles[_currentIndex],
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: _bgColor, // AppBar menyatu dengan background
+        foregroundColor: _textColor,
+        elevation: 0, // Hilangkan shadow agar terlihat flat modern
+        centerTitle: true,
       ),
-      body: _currentIndex == 0
-          ? _buildMovieSearchPage()
-          : AboutPage(user: widget.user), // Langsung arahkan ke AboutPage
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.movie), label: 'Movies'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
-        backgroundColor: Colors.white,
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.grey,
-        showUnselectedLabels: true,
-        type: BottomNavigationBarType.fixed,
+      body: IndexedStack(index: _currentIndex, children: pages),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          border: Border(top: BorderSide(color: Colors.grey[900]!, width: 1)),
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: (index) {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.movie_outlined),
+              activeIcon: Icon(Icons.movie),
+              label: 'Movies',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.history_outlined),
+              activeIcon: Icon(Icons.history),
+              label: 'History',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline),
+              activeIcon: Icon(Icons.person),
+              label: 'Profile',
+            ),
+          ],
+          backgroundColor: _bgColor, // Bottom Nav hitam
+          selectedItemColor: _accentColor, // Icon aktif warna Amber
+          unselectedItemColor: Colors.grey[600], // Icon mati warna abu gelap
+          showUnselectedLabels: false,
+          type: BottomNavigationBarType.fixed,
+          elevation: 0,
+        ),
       ),
     );
   }

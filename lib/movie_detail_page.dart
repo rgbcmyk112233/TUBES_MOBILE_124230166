@@ -29,6 +29,18 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
   bool _isPostingComment = false;
   String _errorMessage = '';
 
+  // Fitur Konversi Mata Uang
+  bool _showInIdr = false; // State untuk toggle currency
+  final double _usdToIdrRate = 16250.0; // Estimasi kurs
+
+  // Warna Tema Konsisten (Dark Mode)
+  final Color _bgColor = const Color(0xFF121212);
+  final Color _cardColor = const Color(0xFF1E1E1E);
+  final Color _inputColor = const Color(0xFF2C2C2C);
+  final Color _accentColor = const Color(0xFFFFC107); // Amber/Gold
+  final Color _textColor = const Color(0xFFE0E0E0);
+  final Color _subTextColor = const Color(0xFFB0B0B0);
+
   @override
   void initState() {
     super.initState();
@@ -99,9 +111,12 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
       await _loadComments();
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Komentar berhasil ditambahkan'),
-          backgroundColor: Colors.green,
+        SnackBar(
+          content: const Text(
+            'Komentar berhasil ditambahkan',
+            style: TextStyle(color: Colors.white),
+          ),
+          backgroundColor: Colors.green[800],
         ),
       );
     } catch (e) {
@@ -130,12 +145,44 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
     }
   }
 
+  // --- LOGIKA KONVERSI MATA UANG ---
+  String _formatCurrency(String boxOfficeValue) {
+    if (boxOfficeValue == 'N/A') return 'N/A';
+
+    // Jika user memilih USD, kembalikan nilai asli
+    if (!_showInIdr) return boxOfficeValue;
+
+    // Bersihkan string (hapus '$' dan ',')
+    String cleanValue = boxOfficeValue.replaceAll(RegExp(r'[$,]'), '');
+    double? valueInUsd = double.tryParse(cleanValue);
+
+    if (valueInUsd == null) return boxOfficeValue;
+
+    // Hitung IDR
+    double valueInIdr = valueInUsd * _usdToIdrRate;
+
+    // Format manual ke Rupiah (tanpa dependency intl biar aman)
+    // Menggunakan regex untuk menambahkan titik setiap 3 digit
+    String idrString = valueInIdr.toStringAsFixed(0);
+    String formatted = '';
+    int count = 0;
+    for (int i = idrString.length - 1; i >= 0; i--) {
+      count++;
+      formatted = idrString[i] + formatted;
+      if (count % 3 == 0 && i != 0) {
+        formatted = '.' + formatted;
+      }
+    }
+
+    return 'Rp $formatted';
+  }
+
+  // --- WIDGET BUILDERS ---
+
   Widget _buildComment(Comment comment) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.symmetric(
-        horizontal: 16,
-      ), // Added horizontal padding
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -145,7 +192,8 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
             height: 40,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.grey[200],
+              color: _inputColor,
+              border: Border.all(color: Colors.grey[800]!),
               image: comment.userPhoto != null && comment.userPhoto!.isNotEmpty
                   ? DecorationImage(
                       image: NetworkImage(comment.userPhoto!),
@@ -154,7 +202,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                   : null,
             ),
             child: comment.userPhoto == null || comment.userPhoto!.isEmpty
-                ? const Icon(Icons.person, size: 20, color: Colors.grey)
+                ? Icon(Icons.person, size: 20, color: _subTextColor)
                 : null,
           ),
           const SizedBox(width: 12),
@@ -164,9 +212,9 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.grey[50],
+                color: _cardColor, // Menggunakan warna kartu gelap
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey[200]!),
+                border: Border.all(color: Colors.white.withOpacity(0.05)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -176,10 +224,10 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                     children: [
                       Text(
                         comment.userName,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 14,
-                          color: Colors.black87,
+                          color: _accentColor, // Nama user pakai warna aksen
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -194,9 +242,9 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                   // Comment Text
                   Text(
                     comment.userComment,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
-                      color: Colors.black87,
+                      color: _textColor, // Teks putih/terang
                       height: 1.4,
                     ),
                     maxLines: 10,
@@ -216,17 +264,21 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 24),
-        Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 16,
-          ), // Added horizontal padding
-          child: const Text(
-            'Komentar',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              Icon(Icons.comment, color: _accentColor, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Comments',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: _textColor,
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 16),
@@ -234,19 +286,16 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
         // Comment Input (only if user is logged in)
         if (widget.user != null) ...[
           Container(
-            margin: const EdgeInsets.symmetric(
-              horizontal: 16,
-            ), // Added horizontal margin
+            margin: const EdgeInsets.symmetric(horizontal: 16),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey[300]!),
+              color: _cardColor,
+              borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
@@ -255,18 +304,21 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                 TextField(
                   controller: _commentController,
                   maxLines: 3,
+                  style: TextStyle(color: _textColor),
                   decoration: InputDecoration(
-                    hintText: 'Tulis komentar tentang film ini...',
+                    hintText: 'Share your thoughts on this movie...',
+                    hintStyle: TextStyle(color: Colors.grey[600]),
+                    filled: true,
+                    fillColor: _inputColor, // Background input gelap
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: Colors.grey[400]!),
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Colors.blue),
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: _accentColor, width: 1),
                     ),
                     contentPadding: const EdgeInsets.all(12),
-                    hintStyle: TextStyle(color: Colors.grey[600]),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -275,28 +327,29 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                   child: ElevatedButton(
                     onPressed: _isPostingComment ? null : _postComment,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
+                      backgroundColor: _accentColor,
+                      foregroundColor:
+                          Colors.black, // Teks hitam di atas tombol gold/amber
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       elevation: 0,
                     ),
                     child: _isPostingComment
-                        ? const SizedBox(
+                        ? SizedBox(
                             height: 20,
                             width: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
+                                Colors.black,
                               ),
                             ),
                           )
                         : const Text(
-                            'Post Komentar',
-                            style: TextStyle(fontWeight: FontWeight.w600),
+                            'Post Comment',
+                            style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                   ),
                 ),
@@ -305,24 +358,23 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
           ),
           const SizedBox(height: 20),
         ] else ...[
+          // Login Prompt (Dark Styled)
           Container(
-            margin: const EdgeInsets.symmetric(
-              horizontal: 16,
-            ), // Added horizontal margin
+            margin: const EdgeInsets.symmetric(horizontal: 16),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.orange[50],
+              color: const Color(0xFF2C2214), // Darker orange/brown bg
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.orange[200]!),
+              border: Border.all(color: Colors.orange.withOpacity(0.3)),
             ),
             child: Row(
               children: [
-                const Icon(Icons.info_outline, color: Colors.orange, size: 20),
-                const SizedBox(width: 8),
+                Icon(Icons.lock_outline, color: Colors.orange[400], size: 20),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Login untuk menambahkan komentar',
-                    style: TextStyle(color: Colors.orange[800], fontSize: 14),
+                    'Please login to add a comment.',
+                    style: TextStyle(color: Colors.orange[200], fontSize: 14),
                   ),
                 ),
               ],
@@ -333,50 +385,45 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
 
         // Comments List
         if (_isLoadingComments)
-          const Padding(
-            padding: EdgeInsets.all(32),
-            child: Center(
-              child: Column(
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 8),
-                  Text(
-                    'Memuat komentar...',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ],
-              ),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: CircularProgressIndicator(color: _accentColor),
             ),
           )
         else if (_comments.isEmpty)
           Container(
-            margin: const EdgeInsets.symmetric(
-              horizontal: 16,
-            ), // Added horizontal margin
+            margin: const EdgeInsets.symmetric(horizontal: 16),
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
-              color: Colors.grey[50],
+              color: _inputColor,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey[200]!),
+              border: Border.all(color: Colors.white.withOpacity(0.05)),
             ),
-            child: const Column(
-              children: [
-                Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey),
-                SizedBox(height: 12),
-                Text(
-                  'Belum ada komentar',
-                  style: TextStyle(
-                    color: Colors.grey,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.chat_bubble_outline,
+                    size: 40,
+                    color: Colors.grey[700],
                   ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Jadilah yang pertama berkomentar!',
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  Text(
+                    'No comments yet',
+                    style: TextStyle(
+                      color: _subTextColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Be the first to share your opinion!',
+                    style: TextStyle(color: Colors.grey[700], fontSize: 12),
+                  ),
+                ],
+              ),
             ),
           )
         else
@@ -386,9 +433,9 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
   }
 
   Widget _buildPosterSection() {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      height: 400,
+      height: 420,
       child: Stack(
         children: [
           // Background Poster
@@ -396,7 +443,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
               ? Image.network(
                   _movie!.poster,
                   width: double.infinity,
-                  height: 400,
+                  height: 420,
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) {
                     return _buildPlaceholderPoster();
@@ -404,13 +451,19 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                 )
               : _buildPlaceholderPoster(),
 
-          // Gradient Overlay
+          // Gradient Overlay (Darker at bottom)
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Colors.transparent, Colors.black.withOpacity(0.7)],
+                colors: [
+                  Colors.black.withOpacity(0.2),
+                  _bgColor.withOpacity(0.0), // Transparent mid
+                  _bgColor.withOpacity(0.9), // Fade to black bg
+                  _bgColor, // Solid black at very bottom
+                ],
+                stops: const [0.0, 0.4, 0.8, 1.0],
               ),
             ),
           ),
@@ -419,48 +472,59 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
           Positioned(
             left: 16,
             right: 16,
-            bottom: 16,
+            bottom: 0,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Title
                 Text(
                   _movie?.title ?? 'Loading...',
                   style: const TextStyle(
-                    fontSize: 24,
+                    fontSize: 28,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
+                    shadows: [Shadow(color: Colors.black, blurRadius: 10)],
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 8),
-                Row(
+                const SizedBox(height: 12),
+
+                // Chips Row
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
-                    if (_movie?.year != null) ...[
-                      _buildInfoChip(_movie!.year),
-                      const SizedBox(width: 8),
-                    ],
-                    if (_movie?.rated != null && _movie!.rated != 'N/A') ...[
-                      _buildInfoChip(_movie!.rated),
-                      const SizedBox(width: 8),
-                    ],
+                    if (_movie?.year != null)
+                      _buildInfoChip(_movie!.year, Icons.calendar_today),
                     if (_movie?.runtime != null && _movie!.runtime != 'N/A')
-                      _buildInfoChip(_movie!.runtime),
+                      _buildInfoChip(_movie!.runtime, Icons.access_time),
+                    if (_movie?.rated != null && _movie!.rated != 'N/A')
+                      _buildInfoChip(
+                        _movie!.rated,
+                        Icons.verified_user_outlined,
+                      ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
+
+                // IMDB Rating (Prominent)
                 if (_movie?.imdbRating != null && _movie!.imdbRating != 'N/A')
                   Row(
                     children: [
-                      const Icon(Icons.star, color: Colors.amber, size: 20),
-                      const SizedBox(width: 4),
+                      Icon(Icons.star, color: _accentColor, size: 24),
+                      const SizedBox(width: 6),
                       Text(
-                        '${_movie!.imdbRating}/10',
+                        _movie!.imdbRating,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 16,
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
+                      ),
+                      const Text(
+                        '/10',
+                        style: TextStyle(color: Colors.grey, fontSize: 14),
                       ),
                       const SizedBox(width: 8),
                       if (_movie?.imdbVotes != null &&
@@ -469,12 +533,29 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                           '(${_movie!.imdbVotes} votes)',
                           style: const TextStyle(
                             color: Colors.white70,
-                            fontSize: 14,
+                            fontSize: 12,
                           ),
                         ),
                     ],
                   ),
               ],
+            ),
+          ),
+
+          // Custom Back Button
+          Positioned(
+            top: 40,
+            left: 16,
+            child: InkWell(
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.arrow_back, color: Colors.white),
+              ),
             ),
           ),
         ],
@@ -484,40 +565,47 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
 
   Widget _buildPlaceholderPoster() {
     return Container(
-      color: Colors.grey[300],
-      child: const Center(
+      color: _cardColor,
+      child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.movie, size: 60, color: Colors.grey),
-            SizedBox(height: 8),
-            Text('No Image Available', style: TextStyle(color: Colors.grey)),
+            Icon(Icons.movie, size: 60, color: Colors.grey[800]),
+            const SizedBox(height: 8),
+            Text('No Image', style: TextStyle(color: Colors.grey[700])),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildInfoChip(String text) {
+  Widget _buildInfoChip(String text, IconData icon) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.3)),
+        color: Colors.white.withOpacity(0.1), // Glassmorphism-like
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.2)),
       ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.white70),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
+  Widget _buildInfoRow(String label, String value, {Widget? trailing}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -527,19 +615,21 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
             width: 100,
             child: Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: Colors.grey,
+                color: Colors.grey[600],
+                fontSize: 14,
               ),
             ),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Text(
-              value != 'N/A' ? value : 'Not available',
-              style: const TextStyle(fontSize: 14),
+              value != 'N/A' ? value : '-',
+              style: TextStyle(fontSize: 15, color: _textColor),
             ),
           ),
+          if (trailing != null) trailing,
         ],
       ),
     );
@@ -547,28 +637,32 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
 
   Widget _buildRatingChip(Rating rating) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       margin: const EdgeInsets.only(right: 8, bottom: 8),
       decoration: BoxDecoration(
-        color: Colors.blue[50],
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.blue[100]!),
+        color: _cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             rating.source,
-            style: const TextStyle(
-              fontSize: 12,
+            style: TextStyle(
+              fontSize: 11,
               fontWeight: FontWeight.bold,
-              color: Colors.blue,
+              color: _accentColor,
             ),
           ),
           const SizedBox(height: 2),
           Text(
             rating.value,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: _textColor,
+            ),
           ),
         ],
       ),
@@ -579,68 +673,110 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
     if (_movie == null) return Container();
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Genre
+          // Genre (Updated Style)
           if (_movie!.genre != 'N/A')
             Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: _movie!.genre.split(', ').map((genre) {
                 return Container(
-                  margin: const EdgeInsets.only(right: 8, bottom: 8),
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
+                    horizontal: 14,
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.green[50],
-                    borderRadius: BorderRadius.circular(16),
+                    color: _inputColor,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.grey[800]!),
                   ),
                   child: Text(
                     genre,
-                    style: TextStyle(color: Colors.green[800], fontSize: 12),
+                    style: TextStyle(color: _subTextColor, fontSize: 13),
                   ),
                 );
               }).toList(),
             ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
 
           // Plot
           if (_movie!.plot != 'N/A') ...[
-            const Text(
-              'Plot',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              'Synopsis',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: _textColor,
+              ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Text(
               _movie!.plot,
-              style: const TextStyle(fontSize: 14, height: 1.5),
+              style: TextStyle(
+                fontSize: 15,
+                height: 1.6,
+                color: Colors.grey[400],
+              ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
           ],
 
           // Movie Details
-          const Text(
-            'Details',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          Text(
+            'Information',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: _textColor,
+            ),
           ),
           const SizedBox(height: 12),
-          _buildInfoRow('Released', _movie!.released),
+          Divider(color: Colors.grey[800]),
           _buildInfoRow('Director', _movie!.director),
           _buildInfoRow('Writer', _movie!.writer),
-          _buildInfoRow('Actors', _movie!.actors),
-          _buildInfoRow('Language', _movie!.language),
-          _buildInfoRow('Country', _movie!.country),
+          _buildInfoRow('Cast', _movie!.actors),
+          _buildInfoRow('Released', _movie!.released),
+
+          // --- BOX OFFICE DENGAN KONVERSI ---
+          if (_movie!.boxOffice != 'N/A')
+            _buildInfoRow(
+              'Box Office',
+              _formatCurrency(_movie!.boxOffice),
+              trailing: Container(
+                height: 24,
+                decoration: BoxDecoration(
+                  color: _inputColor,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[800]!),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _currencyToggleItem('USD', !_showInIdr),
+                    Container(width: 1, color: Colors.grey[800]),
+                    _currencyToggleItem('IDR', _showInIdr),
+                  ],
+                ),
+              ),
+            ),
+
+          Divider(color: Colors.grey[800]),
 
           const SizedBox(height: 20),
 
           // Ratings
           if (_movie!.ratings.isNotEmpty) ...[
-            const Text(
-              'Ratings',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              'Other Ratings',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: _textColor,
+              ),
             ),
             const SizedBox(height: 12),
             Wrap(
@@ -653,25 +789,52 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
 
           // Awards
           if (_movie!.awards != 'N/A') ...[
-            const Text(
-              'Awards',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _accentColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _accentColor.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.emoji_events, color: _accentColor),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _movie!.awards,
+                      style: TextStyle(color: Colors.orange[100]),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 8),
-            Text(_movie!.awards),
-            const SizedBox(height: 20),
-          ],
-
-          // Box Office
-          if (_movie!.boxOffice != 'N/A') ...[
-            const Text(
-              'Box Office',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(_movie!.boxOffice),
           ],
         ],
+      ),
+    );
+  }
+
+  // Widget kecil untuk toggle tombol currency
+  Widget _currencyToggleItem(String text, bool isActive) {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _showInIdr = (text == 'IDR');
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        color: isActive ? _accentColor.withOpacity(0.2) : Colors.transparent,
+        alignment: Alignment.center,
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            color: isActive ? _accentColor : Colors.grey,
+          ),
+        ),
       ),
     );
   }
@@ -679,19 +842,19 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Movie Details'),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
-      ),
+      backgroundColor: _bgColor,
+      // AppBar kita buat transparan/hide karena sudah ada custom back button di Stack poster
       body: _isLoading
-          ? const Center(
+          ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Loading movie details...'),
+                  CircularProgressIndicator(color: _accentColor),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Loading movie details...',
+                    style: TextStyle(color: _subTextColor),
+                  ),
                 ],
               ),
             )
@@ -700,22 +863,32 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.error, size: 64, color: Colors.red),
+                  Icon(Icons.error_outline, size: 64, color: Colors.red[400]),
                   const SizedBox(height: 16),
-                  const Text(
+                  Text(
                     'Failed to load movie',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: _textColor,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     _errorMessage,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.grey),
+                    style: TextStyle(color: _subTextColor),
                   ),
                   const SizedBox(height: 20),
                   ElevatedButton(
                     onPressed: _loadMovieDetails,
-                    child: const Text('Try Again'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _accentColor,
+                    ),
+                    child: const Text(
+                      'Try Again',
+                      style: TextStyle(color: Colors.black),
+                    ),
                   ),
                 ],
               ),
@@ -729,7 +902,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                         _buildPosterSection(),
                         _buildContent(),
                         _buildCommentsSection(),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 40), // Bottom padding
                       ],
                     ),
                   ),
@@ -739,20 +912,12 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
       floatingActionButton: _movie != null
           ? FloatingActionButton(
               onPressed: _openAIChat,
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
-              child: const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.smart_toy, size: 20),
-                  SizedBox(height: 2),
-                  Text('AI', style: TextStyle(fontSize: 10)),
-                ],
-              ),
-              tooltip: 'Diskusi dengan AI tentang film ini',
+              backgroundColor: _accentColor,
+              foregroundColor: Colors.black,
+              child: const Icon(Icons.smart_toy_outlined),
+              tooltip: 'Ask AI about this movie',
             )
           : null,
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 }

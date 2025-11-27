@@ -21,7 +21,22 @@ class SupabaseService {
 
   SupabaseClient get client => Supabase.instance.client;
 
-  // Hash password menggunakan SHA-256
+  // -------------------------------------------------------------------
+  // !!! PERINGATAN KEAMANAN YANG SANGAT PENTING !!!
+  //
+  // Anda TIDAK BOLEH menggunakan sha256 untuk password.
+  // Ini sangat tidak aman karena:
+  // 1. Cepat: Memudahkan "brute force attack".
+  // 2. Tidak di-"Salt": Rentan terhadap "rainbow table attack".
+  //
+  // Cara yang benar adalah menggunakan Supabase Auth bawaan:
+  // - Pendaftaran: `supabase.auth.signUp(email: '...', password: '...')`
+  // - Login: `supabase.auth.signInWithPassword(email: '...', password: '...')`
+  //
+  // Supabase akan menangani hashing (bcrypt) dan keamanan secara otomatis.
+  // Dengan menggunakan tabel `Users` manual seperti ini, Anda
+  // mengabaikan seluruh sistem keamanan Supabase.
+  // -------------------------------------------------------------------
   String hashPassword(String password) {
     return sha256.convert(utf8.encode(password)).toString();
   }
@@ -84,7 +99,9 @@ class SupabaseService {
 
       return response.isNotEmpty;
     } catch (e) {
-      return false;
+      // PERBAIKAN: Jangan sembunyikan error. Jika database gagal,
+      // lebih baik lemparkan error daripada mengembalikan 'false' (email tidak ada).
+      throw Exception('Error checking email: $e');
     }
   }
 
@@ -147,15 +164,13 @@ class SupabaseService {
     }
   }
 
-  // Tambahkan method berikut di class SupabaseService
-
   // Get comments for a movie
   Future<List<Comment>> getComments(String imdbId) async {
     try {
       final response = await client
           .from('Komentar')
           .select()
-          .eq('imdb_id', imdbId)
+          .eq('IMDB-ID', imdbId)
           .order('posted', ascending: false);
 
       return response.map<Comment>((json) => Comment.fromJson(json)).toList();
@@ -174,11 +189,11 @@ class SupabaseService {
   }) async {
     try {
       await client.from('Komentar').insert({
-        'imdb_id': imdbId,
-        'user_id': userId,
-        'user_name': userName,
-        'user_comment': userComment,
-        'user_photo': userPhoto,
+        'IMDB-ID': imdbId,
+        'UserId': userId,
+        'UserName': userName,
+        'UserComment': userComment,
+        'UserPhoto': userPhoto,
         'posted': DateTime.now().toIso8601String(),
       });
     } catch (e) {
@@ -193,9 +208,25 @@ class SupabaseService {
           .from('Komentar')
           .delete()
           .eq('id', commentId)
-          .eq('user_id', userId);
+          // PERBAIKAN: Kolom Anda adalah 'UserId' (PascalCase), bukan 'user_id' (snake_case).
+          .eq('UserId', userId);
     } catch (e) {
       throw Exception('Error deleting comment: $e');
+    }
+  }
+
+  // Get comments by a specific user
+  Future<List<Comment>> getCommentsByUser(String userId) async {
+    try {
+      final response = await client
+          .from('Komentar')
+          .select()
+          .eq('UserId', userId) // Filter berdasarkan UserId
+          .order('posted', ascending: false);
+
+      return response.map<Comment>((json) => Comment.fromJson(json)).toList();
+    } catch (e) {
+      throw Exception('Error fetching user comments: $e');
     }
   }
 }

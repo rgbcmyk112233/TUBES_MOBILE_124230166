@@ -25,6 +25,13 @@ class _AIChatPageState extends State<AIChatPage> {
   bool _serviceInitialized = false;
   String _errorMessage = '';
 
+  // Warna Tema Konsisten (Dark Mode)
+  final Color _bgColor = const Color(0xFF121212);
+  final Color _cardColor = const Color(0xFF1E1E1E); // Background Input
+  final Color _aiBubbleColor = const Color(0xFF2C2C2C); // Bubble AI
+  final Color _userBubbleColor = const Color(0xFFFFC107); // Bubble User (Amber)
+  final Color _textColor = const Color(0xFFE0E0E0);
+
   @override
   void initState() {
     super.initState();
@@ -144,14 +151,14 @@ Ingat: Hanya bahas tentang film "${widget.movieTitle}" dan hal yang terkait. Jan
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, size: 64, color: Colors.red),
+            Icon(Icons.error_outline, size: 64, color: Colors.red[400]),
             const SizedBox(height: 16),
             const Text(
               'AI Service Error',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Colors.red,
+                color: Colors.redAccent,
               ),
             ),
             const SizedBox(height: 8),
@@ -163,6 +170,10 @@ Ingat: Hanya bahas tentang film "${widget.movieTitle}" dan hal yang terkait. Jan
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _initializeGeminiService,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _userBubbleColor,
+                foregroundColor: Colors.black,
+              ),
               child: const Text('Try Again'),
             ),
           ],
@@ -173,45 +184,80 @@ Ingat: Hanya bahas tentang film "${widget.movieTitle}" dan hal yang terkait. Jan
 
   Widget _buildMessage(ChatMessage message) {
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8),
+      margin: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.end, // Align to bottom for avatars
+        mainAxisAlignment: message.isUser
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         children: [
+          // AI Avatar
           if (!message.isUser)
-            CircleAvatar(
-              backgroundColor: Colors.blue,
-              child: Icon(Icons.smart_toy, color: Colors.white, size: 20),
+            Container(
+              margin: const EdgeInsets.only(right: 8),
+              child: CircleAvatar(
+                backgroundColor: Colors.grey[800],
+                radius: 16,
+                child: Icon(Icons.smart_toy, color: _userBubbleColor, size: 18),
+              ),
             ),
-          if (!message.isUser) const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: message.isUser
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
-              children: [
-                Card(
-                  color: message.isUser ? Colors.blue[50] : Colors.grey[100],
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Text(
-                      message.text,
-                      style: const TextStyle(fontSize: 14),
+
+          // Message Bubble
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: message.isUser ? _userBubbleColor : _aiBubbleColor,
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(20),
+                  topRight: const Radius.circular(20),
+                  bottomLeft: message.isUser
+                      ? const Radius.circular(20)
+                      : const Radius.circular(4),
+                  bottomRight: message.isUser
+                      ? const Radius.circular(4)
+                      : const Radius.circular(20),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    message.text,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: message.isUser ? Colors.black87 : _textColor,
+                      height: 1.4,
                     ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${message.timestamp.hour}:${message.timestamp.minute.toString().padLeft(2, '0')}',
-                  style: const TextStyle(fontSize: 10, color: Colors.grey),
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.bottomRight,
+                    child: Text(
+                      '${message.timestamp.hour}:${message.timestamp.minute.toString().padLeft(2, '0')}',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: message.isUser
+                            ? Colors.black54
+                            : Colors.grey[500],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          if (message.isUser) const SizedBox(width: 8),
+
+          // User Avatar
           if (message.isUser)
-            CircleAvatar(
-              backgroundColor: Colors.green,
-              child: Icon(Icons.person, color: Colors.white, size: 20),
+            Container(
+              margin: const EdgeInsets.only(left: 8),
+              child: CircleAvatar(
+                backgroundColor: Colors.grey[800],
+                radius: 16,
+                child: const Icon(Icons.person, color: Colors.white, size: 18),
+              ),
             ),
         ],
       ),
@@ -219,32 +265,39 @@ Ingat: Hanya bahas tentang film "${widget.movieTitle}" dan hal yang terkait. Jan
   }
 
   Widget _buildLoadingIndicator() {
-    return const Padding(
-      padding: EdgeInsets.all(16),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
       child: Row(
         children: [
           CircleAvatar(
-            backgroundColor: Colors.blue,
-            child: Icon(Icons.smart_toy, color: Colors.white, size: 20),
+            backgroundColor: Colors.grey[800],
+            radius: 16,
+            child: Icon(Icons.smart_toy, color: _userBubbleColor, size: 18),
           ),
-          SizedBox(width: 8),
-          Expanded(
-            child: Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    SizedBox(width: 12),
-                    Text('AI sedang mengetik...'),
-                  ],
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: _aiBubbleColor,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(_userBubbleColor),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 10),
+                Text(
+                  'AI is thinking...',
+                  style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                ),
+              ],
             ),
           ),
         ],
@@ -258,7 +311,7 @@ Ingat: Hanya bahas tentang film "${widget.movieTitle}" dan hal yang terkait. Jan
     }
 
     return ListView.builder(
-      reverse: false,
+      padding: const EdgeInsets.only(bottom: 20),
       itemCount: _messages.length + (_isLoading ? 1 : 0),
       itemBuilder: (context, index) {
         if (index < _messages.length) {
@@ -273,37 +326,44 @@ Ingat: Hanya bahas tentang film "${widget.movieTitle}" dan hal yang terkait. Jan
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: _bgColor,
       appBar: AppBar(
+        backgroundColor: _bgColor,
+        foregroundColor: Colors.white,
+        elevation: 0,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Diskusi Film dengan AI'),
+            const Text(
+              'AI Assistant',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
             Text(
-              widget.movieTitle,
-              style: const TextStyle(
+              'Discussing: ${widget.movieTitle}',
+              style: TextStyle(
                 fontSize: 12,
+                color: _userBubbleColor,
                 fontWeight: FontWeight.normal,
               ),
             ),
           ],
         ),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
       ),
       body: Column(
         children: [
-          // Chat Header
+          // Information Banner (Styled)
           Container(
-            padding: const EdgeInsets.all(16),
-            color: Colors.blue[50],
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            color: _cardColor,
             child: Row(
               children: [
-                Icon(Icons.info, color: Colors.blue[700], size: 16),
+                Icon(Icons.info_outline, color: Colors.grey[500], size: 16),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'AI akan membantu Anda berdiskusi tentang film "${widget.movieTitle}"',
-                    style: TextStyle(fontSize: 12, color: Colors.blue[700]),
+                    'AI focus on "${widget.movieTitle}" only.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                   ),
                 ),
               ],
@@ -313,7 +373,7 @@ Ingat: Hanya bahas tentang film "${widget.movieTitle}" dan hal yang terkait. Jan
           // Chat Messages
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: _buildChatBody(),
             ),
           ),
@@ -322,14 +382,8 @@ Ingat: Hanya bahas tentang film "${widget.movieTitle}" dan hal yang terkait. Jan
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 8,
-                  offset: const Offset(0, -2),
-                ),
-              ],
+              color: _cardColor,
+              border: Border(top: BorderSide(color: Colors.grey[900]!)),
             ),
             child: Row(
               children: [
@@ -337,27 +391,43 @@ Ingat: Hanya bahas tentang film "${widget.movieTitle}" dan hal yang terkait. Jan
                   child: TextField(
                     controller: _messageController,
                     enabled: _serviceInitialized,
+                    style: TextStyle(color: _textColor),
+                    cursorColor: _userBubbleColor,
                     decoration: InputDecoration(
                       hintText: _serviceInitialized
-                          ? 'Tanyakan tentang film...'
-                          : 'AI service sedang dimuat...',
+                          ? 'Ask about the movie...'
+                          : 'Connecting to AI...',
+                      hintStyle: TextStyle(color: Colors.grey[600]),
+                      filled: true,
+                      fillColor: _bgColor,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(25),
+                        borderSide: BorderSide.none,
                       ),
                       contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
+                        horizontal: 20,
+                        vertical: 10,
                       ),
                     ),
                     onSubmitted: (_) => _sendMessage(),
                   ),
                 ),
-                const SizedBox(width: 8),
-                CircleAvatar(
-                  backgroundColor: _serviceInitialized
-                      ? Colors.blue
-                      : Colors.grey,
+                const SizedBox(width: 12),
+                Container(
+                  decoration: BoxDecoration(
+                    color: _serviceInitialized
+                        ? _userBubbleColor
+                        : Colors.grey[800],
+                    shape: BoxShape.circle,
+                  ),
                   child: IconButton(
-                    icon: const Icon(Icons.send, color: Colors.white),
+                    icon: Icon(
+                      Icons.send_rounded,
+                      color: _serviceInitialized
+                          ? Colors.black
+                          : Colors.grey[500],
+                      size: 20,
+                    ),
                     onPressed: _serviceInitialized ? _sendMessage : null,
                   ),
                 ),

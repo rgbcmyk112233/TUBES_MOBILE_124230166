@@ -6,6 +6,9 @@ import '../sqlite/user_model.dart';
 import 'home_page.dart';
 import 'login_page.dart';
 import 'services/session_service.dart';
+// Import Database Helper dan Model Log
+import '../sqlite/database_helper.dart';
+import '../models/login_log_model.dart';
 
 class AboutPage extends StatefulWidget {
   final User user;
@@ -20,10 +23,21 @@ class _AboutPageState extends State<AboutPage> {
   final SupabaseService _supabaseService = SupabaseService();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _descController = TextEditingController();
+  final DatabaseHelper _dbHelper = DatabaseHelper.instance;
 
   bool _isEditing = false;
   bool _isLoading = false;
   String? _selectedImagePath;
+  String _lastLoginText =
+      "Memuat data login..."; // Variabel untuk menyimpan text log
+
+  // Warna Tema Konsisten (Dark Mode)
+  final Color _bgColor = const Color(0xFF121212);
+  final Color _cardColor = const Color(0xFF1E1E1E);
+  final Color _inputColor = const Color(0xFF2C2C2C);
+  final Color _accentColor = const Color(0xFFFFC107);
+  final Color _textColor = const Color(0xFFE0E0E0);
+  final Color _subTextColor = const Color(0xFFB0B0B0);
 
   @override
   void initState() {
@@ -31,20 +45,111 @@ class _AboutPageState extends State<AboutPage> {
     _nameController.text = widget.user.userName;
     _descController.text = widget.user.userDesc;
     _initializeSupabase();
+    _loadLastLogin(); // Panggil fungsi load log
   }
 
   Future<void> _initializeSupabase() async {
     await _supabaseService.initialize();
   }
 
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+  // --- AMBIL DATA LOG LOGIN TERAKHIR ---
+  Future<void> _loadLastLogin() async {
+    try {
+      final log = await _dbHelper.getLastLogin(widget.user.userName);
+      if (log != null) {
+        // Parsing waktu ISO8601 ke format yang enak dibaca
+        final dateTime = DateTime.parse(log.loginTime).toLocal();
+        final dateStr = "${dateTime.day}-${dateTime.month}-${dateTime.year}";
+        final timeStr =
+            "${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}";
 
-    if (pickedFile != null) {
-      setState(() {
-        _selectedImagePath = pickedFile.path;
-      });
+        if (mounted) {
+          setState(() {
+            _lastLoginText = "Last Login: $dateStr at $timeStr";
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _lastLoginText = "First time login / No log found.";
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _lastLoginText = "Failed to load log info.";
+        });
+      }
+    }
+  }
+
+  // ... (Fungsi _showImagePickerOptions, _pickImage, _saveProfile, _showLogoutDialog, _logout, _buildProfileImage, _getProfileImage, _shouldShowPlaceholder, _buildInputLabel tetap SAMA seperti sebelumnya) ...
+  // Silakan copy paste method-method tersebut dari kode sebelumnya jika perlu,
+  // karena tidak ada perubahan logika di sana.
+  // Saya akan langsung ke bagian build() untuk menunjukkan penempatan Log.
+
+  // --- LOGIKA PILIH GAMBAR (KAMERA / GALERI) ---
+  void _showImagePickerOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera, color: Colors.white),
+                title: const Text(
+                  'Ambil Foto (Kamera)',
+                  style: TextStyle(color: Colors.white),
+                ),
+                onTap: () {
+                  _pickImage(ImageSource.camera);
+                  Navigator.of(context).pop();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library, color: Colors.white),
+                title: const Text(
+                  'Pilih dari Galeri',
+                  style: TextStyle(color: Colors.white),
+                ),
+                onTap: () {
+                  _pickImage(ImageSource.gallery);
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(
+        source: source,
+        imageQuality: 80,
+      );
+
+      if (pickedFile != null) {
+        setState(() {
+          _selectedImagePath = pickedFile.path;
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal mengambil gambar: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -55,36 +160,36 @@ class _AboutPageState extends State<AboutPage> {
 
     try {
       String? photoUrl;
-
-      // Upload new photo if selected
       if (_selectedImagePath != null) {
         photoUrl = await _supabaseService.uploadUserPhoto(
-          userId: widget.user.userId, // Hanya digunakan untuk path storage
+          userId: widget.user.userId,
           filePath: _selectedImagePath!,
         );
       }
 
-      // Update user profile - TIDAK termasuk UserId
       await _supabaseService.updateUserProfile(
-        userId: widget.user.userId, // Hanya untuk WHERE clause
+        userId: widget.user.userId,
         userName: _nameController.text.trim(),
         userDesc: _descController.text.trim(),
         userPhoto: photoUrl,
       );
 
-      // Update user data locally - UserId tetap sama
       final updatedUser = User(
-        userId: widget.user.userId, // UserId TETAP, tidak diubah
+        userId: widget.user.userId,
         userName: _nameController.text.trim(),
-        userMail: widget.user.userMail, // Email juga tetap
+        userMail: widget.user.userMail,
         userDesc: _descController.text.trim(),
         userPhoto: photoUrl ?? widget.user.userPhoto,
       );
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profile berhasil diupdate'),
-          backgroundColor: Colors.green,
+        SnackBar(
+          content: const Text(
+            'Profile berhasil diupdate',
+            style: TextStyle(color: Colors.white),
+          ),
+          backgroundColor: Colors.green[800],
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -94,12 +199,12 @@ class _AboutPageState extends State<AboutPage> {
         _isLoading = false;
       });
 
-      // Navigate back to home with updated user data
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => HomePage(user: updatedUser)),
       );
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error: $e'),
@@ -118,137 +223,76 @@ class _AboutPageState extends State<AboutPage> {
       context: context,
       builder: (BuildContext context) {
         return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.all(20),
-          child: ScaleTransition(
-            scale: CurvedAnimation(
-              parent: ModalRoute.of(context)!.animation!,
-              curve: Curves.elasticOut,
-              reverseCurve: Curves.easeInBack,
-            ),
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
+          backgroundColor: _cardColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    shape: BoxShape.circle,
                   ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Animated Icon
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 500),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.logout,
-                      size: 40,
-                      color: Colors.red,
-                    ),
+                  child: const Icon(Icons.logout, size: 40, color: Colors.red),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Logout',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
-
-                  const SizedBox(height: 20),
-
-                  // Title
-                  const Text(
-                    'Logout',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red,
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // Message
-                  const Text(
-                    'Apakah Anda yakin ingin logout?',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 16, color: Colors.black87),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // Warning Text
-                  const Text(
-                    'Anda perlu login kembali untuk mengakses aplikasi',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-
-                  const SizedBox(height: 30),
-
-                  // Buttons
-                  Row(
-                    children: [
-                      // Cancel Button
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                          },
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.blue,
-                            side: const BorderSide(color: Colors.blue),
-                            padding: const EdgeInsets.symmetric(vertical: 15),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: const Text(
-                            'Batal',
-                            style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Apakah Anda yakin ingin logout?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, color: _subTextColor),
+                ),
+                const SizedBox(height: 30),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _textColor,
+                          side: BorderSide(color: Colors.grey[700]!),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
+                        child: const Text('Batal'),
                       ),
-
-                      const SizedBox(width: 16),
-
-                      // Logout Button
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                            _logout();
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 15),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 2,
-                            shadowColor: Colors.red.withOpacity(0.5),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.logout, size: 18),
-                              SizedBox(width: 8),
-                              Text(
-                                'Logout',
-                                style: TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                            ],
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          _logout();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red[700],
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
+                        child: const Text('Logout'),
                       ),
-                    ],
-                  ),
-                ],
-              ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         );
@@ -257,72 +301,57 @@ class _AboutPageState extends State<AboutPage> {
   }
 
   void _logout() async {
-    // Clear session from local database
     final SessionService sessionService = SessionService();
     await sessionService.logout();
-
-    // Add a little delay for better UX
-    Future.delayed(const Duration(milliseconds: 300), () {
-      Navigator.pushAndRemoveUntil(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              const LoginPage(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            const begin = Offset(0.0, 1.0);
-            const end = Offset.zero;
-            const curve = Curves.easeInOut;
-            var tween = Tween(
-              begin: begin,
-              end: end,
-            ).chain(CurveTween(curve: curve));
-            var offsetAnimation = animation.drive(tween);
-
-            return SlideTransition(
-              position: offsetAnimation,
-              child: FadeTransition(opacity: animation, child: child),
-            );
-          },
-          transitionDuration: const Duration(milliseconds: 500),
-        ),
-        (route) => false,
-      );
-    });
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginPage()),
+      (route) => false,
+    );
   }
 
   Widget _buildProfileImage() {
     return GestureDetector(
-      onTap: _isEditing ? _pickImage : null,
+      onTap: _isEditing ? _showImagePickerOptions : null,
       child: Stack(
         children: [
-          CircleAvatar(
-            radius: 60,
-            backgroundColor: Colors.grey[300],
-            backgroundImage: _getProfileImage(),
-            child: _shouldShowPlaceholder()
-                ? const Icon(Icons.person, size: 50, color: Colors.grey)
-                : null,
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: _accentColor, width: 2),
+              color: _bgColor,
+            ),
+            child: CircleAvatar(
+              radius: 60,
+              backgroundColor: _inputColor,
+              backgroundImage: _getProfileImage(),
+              child: _shouldShowPlaceholder()
+                  ? Icon(Icons.person, size: 60, color: Colors.grey[600])
+                  : null,
+            ),
           ),
           if (_isEditing)
             Positioned(
               bottom: 0,
               right: 0,
               child: Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.blue,
+                  color: _accentColor,
                   shape: BoxShape.circle,
+                  border: Border.all(color: _bgColor, width: 4),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.blue.withOpacity(0.5),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+                      color: Colors.black.withOpacity(0.5),
+                      blurRadius: 6,
                     ),
                   ],
                 ),
                 child: const Icon(
                   Icons.camera_alt,
-                  color: Colors.white,
+                  color: Colors.black,
                   size: 20,
                 ),
               ),
@@ -347,229 +376,257 @@ class _AboutPageState extends State<AboutPage> {
         (widget.user.userPhoto == null || widget.user.userPhoto!.isEmpty);
   }
 
+  Widget _buildInputLabel(String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8, left: 4),
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          color: _accentColor,
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
+          letterSpacing: 1.0,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: _bgColor,
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(child: CircularProgressIndicator(color: _accentColor))
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.fromLTRB(20, 40, 20, 40),
               child: Column(
                 children: [
-                  const SizedBox(height: 40),
-
-                  // Profile Picture - DI TENGAH
+                  const SizedBox(height: 20),
                   Center(child: _buildProfileImage()),
-
                   const SizedBox(height: 30),
 
-                  // User Info
-                  Column(
-                    children: [
-                      Text(
-                        _nameController.text,
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
+                  if (!_isEditing) ...[
+                    Text(
+                      _nameController.text,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        color: _textColor,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.user.userMail,
+                      style: TextStyle(fontSize: 16, color: _subTextColor),
+                    ),
+                    const SizedBox(height: 24),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: _cardColor,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.05),
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        widget.user.userMail,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          _descController.text,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            color: Colors.black87,
+                      child: Column(
+                        children: [
+                          Text(
+                            "About Me",
+                            style: TextStyle(
+                              color: _accentColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
                           ),
-                        ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _descController.text.isNotEmpty
+                                ? _descController.text
+                                : "No description available.",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: _textColor,
+                              height: 1.5,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
 
-                  const SizedBox(height: 30),
-
-                  // Edit Section (Only when editing)
                   if (_isEditing) ...[
                     Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Name Field
+                        _buildInputLabel('Username'),
                         TextFormField(
                           controller: _nameController,
+                          style: TextStyle(color: _textColor),
                           decoration: InputDecoration(
-                            labelText: 'Nama Pengguna',
-                            prefixIcon: const Icon(Icons.person),
+                            hintText: 'Enter your username',
+                            hintStyle: TextStyle(color: Colors.grey[700]),
+                            prefixIcon: Icon(Icons.person, color: _accentColor),
+                            filled: true,
+                            fillColor: _inputColor,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: _accentColor),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 16),
-
-                        // Description Field
+                        const SizedBox(height: 20),
+                        _buildInputLabel('Bio / Description'),
                         TextFormField(
                           controller: _descController,
                           maxLines: 3,
+                          style: TextStyle(color: _textColor),
                           decoration: InputDecoration(
-                            labelText: 'Deskripsi Diri',
-                            prefixIcon: const Icon(Icons.description),
+                            hintText: 'Tell us about yourself...',
+                            hintStyle: TextStyle(color: Colors.grey[700]),
+                            prefixIcon: Padding(
+                              padding: const EdgeInsets.only(bottom: 30),
+                              child: Icon(
+                                Icons.description,
+                                color: _accentColor,
+                              ),
+                            ),
+                            filled: true,
+                            fillColor: _inputColor,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: _accentColor),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 20),
-
-                        // Action Buttons
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: _saveProfile,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 15,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                                child: const Text('Simpan Perubahan'),
+                      ],
+                    ),
+                    const SizedBox(height: 30),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _saveProfile,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _accentColor,
+                              foregroundColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () {
-                                  setState(() {
-                                    _isEditing = false;
-                                    _nameController.text = widget.user.userName;
-                                    _descController.text = widget.user.userDesc;
-                                    _selectedImagePath = null;
-                                  });
-                                },
-                                style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 15,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                                child: const Text('Batal'),
-                              ),
+                            child: const Text(
+                              'Save Changes',
+                              style: TextStyle(fontWeight: FontWeight.bold),
                             ),
-                          ],
+                          ),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              setState(() {
+                                _isEditing = false;
+                                _nameController.text = widget.user.userName;
+                                _descController.text = widget.user.userDesc;
+                                _selectedImagePath = null;
+                              });
+                            },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: _textColor,
+                              side: BorderSide(color: Colors.grey[700]!),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text('Cancel'),
+                          ),
+                        ),
                       ],
                     ),
                   ],
 
-                  const SizedBox(height: 20),
-
-                  // Course Message Section
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.blue[50],
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.blue[100]!),
-                    ),
-                    child: const Column(
-                      children: [
-                        Icon(Icons.school, size: 40, color: Colors.blue),
-                        SizedBox(height: 12),
-                        Text(
-                          'Mata Kuliah Mobile Programming',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'MANTAP',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.black87,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
                   const SizedBox(height: 30),
 
-                  // Action Buttons
-                  Column(
-                    children: [
-                      // Edit Profile Button (when not editing)
-                      if (!_isEditing)
-                        SizedBox(
-                          width: double.infinity,
+                  if (!_isEditing) ...[
+                    Row(
+                      children: [
+                        Expanded(
                           child: ElevatedButton.icon(
                             onPressed: () {
                               setState(() {
                                 _isEditing = true;
                               });
                             },
-                            icon: const Icon(Icons.edit),
+                            icon: const Icon(Icons.edit_outlined),
                             label: const Text('Edit Profile'),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 15),
+                              backgroundColor: _cardColor,
+                              foregroundColor: _accentColor,
+                              side: BorderSide(color: _accentColor),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
                           ),
                         ),
-
-                      if (!_isEditing) const SizedBox(height: 16),
-
-                      // Logout Button
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _showLogoutDialog,
-                          icon: const Icon(Icons.logout),
-                          label: const Text('Logout'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 15),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _showLogoutDialog,
+                            icon: const Icon(Icons.logout),
+                            label: const Text('Logout'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red.withOpacity(0.1),
+                              foregroundColor: Colors.red[400],
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: BorderSide(
+                                  color: Colors.red.withOpacity(0.5),
+                                ),
+                              ),
                             ),
-                            elevation: 2,
-                            shadowColor: Colors.red.withOpacity(0.3),
                           ),
+                        ),
+                      ],
+                    ),
+                  ],
+
+                  // --- FITUR BARU: LOG LOGIN DI BAGIAN PALING BAWAH ---
+                  const SizedBox(height: 40),
+                  Divider(color: Colors.grey[800]),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.history, size: 14, color: Colors.grey[600]),
+                      const SizedBox(width: 6),
+                      Text(
+                        _lastLoginText, // Menampilkan data dari SQLite
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                          fontStyle: FontStyle.italic,
                         ),
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 20),
                 ],
               ),

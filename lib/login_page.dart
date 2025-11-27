@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
 import '../services/session_service.dart';
 import '../sqlite/user_model.dart';
+import '../sqlite/database_helper.dart'; // Pastikan import ini ada
+import '../models/login_log_model.dart'; // Import model log
 import 'register_page.dart';
 import 'home_page.dart';
 
@@ -18,10 +20,19 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _passwordController = TextEditingController();
   final SupabaseService _supabaseService = SupabaseService();
   final SessionService _sessionService = SessionService();
+  // Tambahkan instance DatabaseHelper (sesuaikan dengan nama class Anda)
+  final DatabaseHelper _dbHelper = DatabaseHelper.instance;
 
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _checkingSession = true;
+
+  // Warna Tema (Dark Mode)
+  final Color _bgColor = const Color(0xFF121212);
+  final Color _inputColor = const Color(0xFF2C2C2C);
+  final Color _accentColor = const Color(0xFFFFC107);
+  final Color _textColor = const Color(0xFFE0E0E0);
+  final Color _subTextColor = const Color(0xFFB0B0B0);
 
   @override
   void initState() {
@@ -38,7 +49,6 @@ class _LoginPageState extends State<LoginPage> {
     try {
       final session = await _sessionService.getCurrentSession();
       if (session != null && session.isValid) {
-        // Auto login dengan session yang valid
         final user = User.fromSession(session);
         _navigateToHome(user);
         return;
@@ -46,9 +56,11 @@ class _LoginPageState extends State<LoginPage> {
     } catch (e) {
       print('Error checking session: $e');
     } finally {
-      setState(() {
-        _checkingSession = false;
-      });
+      if (mounted) {
+        setState(() {
+          _checkingSession = false;
+        });
+      }
     }
   }
 
@@ -67,26 +79,48 @@ class _LoginPageState extends State<LoginPage> {
         if (userData != null) {
           final user = User.fromJson(userData);
 
-          // Save session to local database
+          // 1. Simpan Session
           await _sessionService.saveSession(user.toSession());
 
-          _navigateToHome(user);
+          // 2. SIMPAN LOG LOGIN KE SQLITE (Fitur Baru)
+          try {
+            await _dbHelper.insertLoginLog(
+              LoginLog(
+                username: user.userName,
+                loginTime: DateTime.now().toIso8601String(),
+              ),
+            );
+          } catch (e) {
+            print("Gagal menyimpan log login: $e");
+            // Kita biarkan login tetap lanjut meski log gagal disimpan
+          }
+
+          if (mounted) _navigateToHome(user);
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Email atau password salah'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Email atau password salah',
+                  style: TextStyle(color: Colors.white),
+                ),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          );
+        }
       } finally {
-        setState(() {
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     }
   }
@@ -101,14 +135,18 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     if (_checkingSession) {
-      return const Scaffold(
+      return Scaffold(
+        backgroundColor: _bgColor,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Memeriksa session...'),
+              CircularProgressIndicator(color: _accentColor),
+              const SizedBox(height: 16),
+              Text(
+                'Memeriksa session...',
+                style: TextStyle(color: _subTextColor),
+              ),
             ],
           ),
         ),
@@ -116,73 +154,91 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
+      backgroundColor: _bgColor,
+      body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Form(
             key: _formKey,
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 60),
-
-                // Logo/Icon
-                Icon(Icons.movie, size: 100, color: Colors.blue),
-
-                const SizedBox(height: 20),
-                const Text(
-                  'Selamat Datang',
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: _accentColor.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.movie_filter_rounded,
+                    size: 80,
+                    color: _accentColor,
+                  ),
+                ),
+                const SizedBox(height: 30),
+                Text(
+                  'Welcome Back',
                   style: TextStyle(
-                    fontSize: 28,
+                    fontSize: 32,
                     fontWeight: FontWeight.bold,
-                    color: Colors.blue,
+                    color: _textColor,
+                    letterSpacing: 1.0,
                   ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 10),
-                const Text(
-                  'Silakan login ke akun Anda',
-                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                const SizedBox(height: 8),
+                Text(
+                  'Sign in to continue exploring movies',
+                  style: TextStyle(fontSize: 16, color: _subTextColor),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 40),
-
-                // Email Field
+                const SizedBox(height: 50),
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
+                  style: TextStyle(color: _textColor),
                   decoration: InputDecoration(
                     labelText: 'Email',
-                    prefixIcon: const Icon(Icons.email),
+                    labelStyle: TextStyle(color: _subTextColor),
+                    prefixIcon: Icon(Icons.email_outlined, color: _accentColor),
+                    filled: true,
+                    fillColor: _inputColor,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: _accentColor),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 16,
+                      horizontal: 20,
                     ),
                   ),
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Masukkan email';
-                    }
-                    if (!value.contains('@')) {
+                    if (value == null || value.isEmpty) return 'Masukkan email';
+                    if (!value.contains('@'))
                       return 'Masukkan email yang valid';
-                    }
                     return null;
                   },
                 ),
                 const SizedBox(height: 20),
-
-                // Password Field
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
+                  style: TextStyle(color: _textColor),
                   decoration: InputDecoration(
                     labelText: 'Password',
-                    prefixIcon: const Icon(Icons.lock),
+                    labelStyle: TextStyle(color: _subTextColor),
+                    prefixIcon: Icon(Icons.lock_outline, color: _accentColor),
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscurePassword
-                            ? Icons.visibility
-                            : Icons.visibility_off,
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        color: Colors.grey,
                       ),
                       onPressed: () {
                         setState(() {
@@ -190,59 +246,69 @@ class _LoginPageState extends State<LoginPage> {
                         });
                       },
                     ),
+                    filled: true,
+                    fillColor: _inputColor,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: _accentColor),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 16,
+                      horizontal: 20,
                     ),
                   ),
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
+                    if (value == null || value.isEmpty)
                       return 'Masukkan password';
-                    }
-                    if (value.length < 6) {
-                      return 'Password minimal 6 karakter';
-                    }
+                    if (value.length < 6) return 'Password minimal 6 karakter';
                     return null;
                   },
                 ),
-                const SizedBox(height: 30),
-
-                // Login Button
+                const SizedBox(height: 40),
                 ElevatedButton(
                   onPressed: _isLoading ? null : _login,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
+                    backgroundColor: _accentColor,
+                    foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
+                    elevation: 5,
+                    shadowColor: _accentColor.withOpacity(0.4),
                   ),
                   child: _isLoading
                       ? const SizedBox(
-                          height: 20,
-                          width: 20,
+                          height: 24,
+                          width: 24,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
+                              Colors.black,
                             ),
                           ),
                         )
                       : const Text(
                           'LOGIN',
                           style: TextStyle(
-                            fontSize: 18,
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            letterSpacing: 1.2,
                           ),
                         ),
                 ),
-                const SizedBox(height: 20),
-
-                // Register Link
+                const SizedBox(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text('Belum punya akun?'),
+                    Text(
+                      'Don\'t have an account?',
+                      style: TextStyle(color: _subTextColor),
+                    ),
                     TextButton(
                       onPressed: () {
                         Navigator.push(
@@ -252,11 +318,11 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         );
                       },
-                      child: const Text(
-                        'Daftar di sini',
+                      child: Text(
+                        'Sign Up',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: Colors.blue,
+                          color: _accentColor,
                         ),
                       ),
                     ),
